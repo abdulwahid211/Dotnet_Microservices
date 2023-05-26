@@ -1,8 +1,8 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using MassTransit;
+using Microsoft.AspNetCore.Mvc;
 using System.Transactions;
 using UserService.Models;
 using UserService.Repository;
-
 namespace UserService.Controllers
 {
     [Route("api/[controller]")]
@@ -12,9 +12,12 @@ namespace UserService.Controllers
 
         private readonly IUserRepository _userRepository;
 
-        public UserController(IUserRepository userRepository)
+        private readonly IPublishEndpoint _publishEndpoint;
+
+        public UserController(IUserRepository userRepository, IPublishEndpoint publishEndpoint)
         {
             _userRepository = userRepository;
+            _publishEndpoint = publishEndpoint;
         }
 
         // GET: api/User
@@ -35,14 +38,14 @@ namespace UserService.Controllers
 
         // POST: api/User
         [HttpPost]
-        public IActionResult Post([FromBody] User User)
+        public async Task<IActionResult> Post([FromBody] User User)
         {
-            using (var scope = new TransactionScope())
-            {
-                _userRepository.AddUser(User);
-                scope.Complete();
-                return CreatedAtAction(nameof(Get), new { id = User.ID }, User);
-            }
+
+            _userRepository.AddUser(User);
+            await _publishEndpoint.Publish(User);
+            //send the inserted product data to the queue and consumer will listening this data from queue
+            return CreatedAtAction(nameof(Get), new { id = User.ID }, User);
+
         }
 
         // PUT: api/User/5

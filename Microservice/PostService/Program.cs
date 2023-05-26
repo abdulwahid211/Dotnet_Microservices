@@ -1,18 +1,23 @@
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
-using UserService.DBContext;
-using UserService.Repository;
+using Newtonsoft.Json;
+using PostService.DBContext;
+using PostService.Models;
+using PostService.Repository;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-var mySqlConnectionStr = builder.Configuration.GetConnectionString("WebApiDatabase");
-builder.Services.AddDbContextPool<UserContext>(options => options.UseMySql(mySqlConnectionStr, ServerVersion.AutoDetect(mySqlConnectionStr)));
 
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+// Add services to the container.
+var mySqlConnectionStr = builder.Configuration.GetConnectionString("WebApiDatabase");
+builder.Services.AddDbContextPool<PostContext>(options => options.UseMySql(mySqlConnectionStr, ServerVersion.AutoDetect(mySqlConnectionStr)));
+builder.Services.AddTransient<IPostRepository, PostRepository>();
 builder.Services.AddMassTransit(x =>
 {
     // elided...
@@ -23,11 +28,15 @@ builder.Services.AddMassTransit(x =>
             h.Username("guest");
             h.Password("guest");
         });
+        cfg.ReceiveEndpoint("MessageQueue", (c) =>
+        {
+            c.Consumer<UserConsumer>();
+        });
+
         cfg.ConfigureEndpoints(context);
+
     });
 });
-
-builder.Services.AddTransient<IUserRepository, UserRepository>();
 
 var app = builder.Build();
 
@@ -46,3 +55,12 @@ app.MapControllers();
 
 app.Run();
 
+
+class UserConsumer : IConsumer<User>
+{
+    public async Task Consume(ConsumeContext<User> context)
+    {
+        var jsonMessage = JsonConvert.SerializeObject(context.Message);
+        Console.WriteLine($"User message recived: {jsonMessage}");
+    }
+}

@@ -1,0 +1,54 @@
+version: '3.4'
+
+services:
+  db:
+    image: mysql:8.0
+    restart: always
+    environment:
+      - MYSQL_DATABASE=stuff
+      - MYSQL_USER=user
+      - MYSQL_PASSWORD=password
+      - MYSQL_ALLOW_EMPTY_PASSWORD=password
+    ports:
+      - '3308:3306'
+    volumes:
+      - ./init/upload.sql:/docker-entrypoint-initdb.d/upload.sql 
+  postservice:
+    image: ${DOCKER_REGISTRY-}postservice
+    depends_on:
+       - db
+       - rabbitmq
+    build:
+      context: .
+      dockerfile: PostService/Dockerfile
+    ports:
+      - "8000:80"
+    restart: always
+  userservice:
+    image: ${DOCKER_REGISTRY-}userservice
+    depends_on:
+       - db
+       - rabbitmq
+    build:
+      context: .
+      dockerfile: UserService/Dockerfile
+    ports:
+      - "7000:80"
+    restart: always
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: 'rabbitmq'
+    ports:
+        - 5672:5672
+        - 15672:15672
+    volumes:
+        - ~/.docker-conf/rabbitmq/data/:/var/lib/rabbitmq/
+        - ~/.docker-conf/rabbitmq/log/:/var/log/rabbitmq
+    networks:
+        - rabbitmq_go_net
+volumes:
+  db:
+    driver: local
+networks:
+  rabbitmq_go_net:
+    driver: bridge
